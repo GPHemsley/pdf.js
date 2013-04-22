@@ -14,8 +14,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/* globals NotImplementedException, MissingDataException, Promise, Stream,
-           PDFDocument, ChunkedStream, ChunkedStreamManager */
+/* globals BasePdfManager, ChunkedStream, ChunkedStreamManager,
+           NotImplementedException, MissingDataException, PDFDocument,
+           Promise, Stream, TIFFDocument */
 
 'use strict';
 

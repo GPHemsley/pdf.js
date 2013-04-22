@@ -1,8 +1,16 @@
+/* -*- Mode: JavaScript; tab-width: 4; c-basic-offset: 4 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* globals assertWellFormed, calculateMD5, error, globalScope,
+           InvalidPDFException, isArray, isArrayBuffer, isDict, isInt, isName,
+           isStream, isString, LocalPdfManager, log, MissingPDFException,
+           NetworkManager, NetworkPdfManager, NotImplementedException,
+           PasswordException, PDFDocument, PDFJS, Promise, shadow, Stream,
+           stringToPDFString, TiffPdfManager, UnknownErrorException, warn,
+           XRef, XRefParseException */
 
-"use strict";
+'use strict';
 
 var Page = (function PageClosure() {
 	function Page(pdfManager, xref, pageIndex) {
@@ -102,7 +110,7 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 		//console.log( this, stream, this.isLittleEndian(), this.hasTowel() );
 		//console.log( stream.bytes );
 
-		console.log( "TIFFDocument", "this", this );
+		console.log( 'TIFFDocument', 'this', this );
 	}
 
 	TIFFDocument.prototype = {
@@ -149,7 +157,7 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 				this.littleEndian = false;
 			} else {
 				console.log( BOM );
-				throw TypeError("Invalid byte order value.");
+				throw new TypeError('Invalid byte order value.');
 			}
 
 			return this.littleEndian;
@@ -158,7 +166,7 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 		hasTowel: function TIFFDocument_hasTowel() {
 			// Check for towel.
 			if (this.getBytes(2, 2) !== 42) {
-				throw RangeError("You forgot your towel!");
+				throw new RangeError('You forgot your towel!');
 				return false;
 			}
 
@@ -283,8 +291,8 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 			if (fieldTag in fieldTagNames) {
 				fieldTagName = fieldTagNames[fieldTag];
 			} else {
-				console.log( "Unknown Field Tag:", fieldTag);
-				fieldTagName = "Tag" + fieldTag;
+				console.log( 'Unknown Field Tag:', fieldTag);
+				fieldTagName = 'Tag' + fieldTag;
 			}
 
 			return fieldTagName;
@@ -340,7 +348,7 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 
 			if (totalBits <= 0) {
 				console.log( numBits, byteOffset, bitOffset );
-				throw RangeError("No bits requested");
+				throw new RangeError('No bits requested');
 			} else if (totalBits <= 8) {
 				var shiftLeft = 24 + bitOffset;
 				var rawBits = this.tiffDataView.getUint8(newByteOffset, this.littleEndian);
@@ -352,7 +360,7 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 				var rawBits = this.tiffDataView.getUint32(newByteOffset, this.littleEndian);
 			} else {
 				console.log( numBits, byteOffset, bitOffset );
-				throw RangeError("Too many bits requested");
+				throw new RangeError('Too many bits requested');
 			}
 
 			var chunkInfo = {
@@ -373,7 +381,7 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 
 			if ((offset + numBytes) > bytesLength) {
 				console.log(offset, numBytes, bytesLength);
-				throw RangeError("More bytes requested than available");
+				throw new RangeError('More bytes requested than available');
 			}
 
 			var subarray = this.bytes.subarray(offset, offset + numBytes);
@@ -388,7 +396,7 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 
 			if (numBytes <= 0) {
 				console.log( numBytes, offset );
-				throw RangeError("No bytes requested");
+				throw new RangeError('No bytes requested');
 			} else if (numBytes <= 1) {
 				return (bytes[0] & 0xff);
 				//return this.tiffDataView.getUint8(offset, this.littleEndian);
@@ -403,7 +411,7 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 				//return this.tiffDataView.getUint32(offset, this.littleEndian);
 			} else {
 				console.log( numBytes, offset );
-				throw RangeError("Too many bytes requested");
+				throw new RangeError('Too many bytes requested');
 			}
 		},
 
@@ -436,7 +444,7 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 	//						fieldValues.push(this.getBytes(4, valueOffset + indexOffset) + this.getBytes(4, valueOffset + indexOffset + 4));
 						} else {
 							console.log( fieldTypeName, typeCount, fieldValueSize );
-							throw TypeError("Can't handle this field type or size");
+							throw new TypeError('Cannot handle this field type or size');
 						}
 					} else {
 						fieldValues.push(this.getBytes(fieldTypeLength, valueOffset + indexOffset));
@@ -461,7 +469,7 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 			if(typeof a === 'undefined') {
 				a = 1.0;
 			}
-			return "rgba(" + r + ", " + g + ", " + b + ", " + a + ")";
+			return 'rgba(' + r + ', ' + g + ', ' + b + ', ' + a + ')';
 		},
 
 		parseFileDirectory: function TIFFDocument_parseFileDirectory(byteOffset) {
@@ -516,7 +524,7 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 
 			var operatorList = createOperatorList();
 
-			console.log( "fileDirectory", fileDirectory );
+			console.log( 'fileDirectory', fileDirectory );
 
 			var imageWidth = fileDirectory.ImageWidth.values[0];
 			var imageLength = fileDirectory.ImageLength.values[0];
@@ -562,13 +570,13 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 			if (fileDirectory.StripByteCounts) {
 				var stripByteCountValues = fileDirectory.StripByteCounts.values;
 			} else {
-				console.log("Missing StripByteCounts!");
+				console.log('Missing StripByteCounts!');
 
 				// Infer StripByteCounts, if possible.
 				if (numStripOffsetValues === 1) {
 					var stripByteCountValues = [Math.ceil((imageWidth * imageLength * bitsPerPixel) / 8)];
 				} else {
-					throw Error("Cannot recover from missing StripByteCounts");
+					throw new Error('Cannot recover from missing StripByteCounts');
 				}
 			}
 
@@ -600,7 +608,7 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 									byteOffset = sampleInfo.byteOffset - stripOffset;
 									bitOffset = sampleInfo.bitOffset;
 
-									throw RangeError("Cannot handle sub-byte bits per sample");
+									throw new RangeError('Cannot handle sub-byte bits per sample');
 								}
 							}
 
@@ -611,7 +619,7 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 							} else {
 								jIncrement = 0;
 
-								throw RangeError("Cannot handle sub-byte bits per pixel");
+								throw new RangeError('Cannot handle sub-byte bits per pixel');
 							}
 						break;
 
@@ -681,7 +689,7 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 											sample++;
 										}
 									} else {
-										throw RangeError("Cannot handle sub-byte bits per sample");
+										throw new RangeError('Cannot handle sub-byte bits per sample');
 									}
 
 									// Is our pixel complete?
@@ -715,10 +723,10 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 	//			console.log( strips[i] );
 			}
 
-			//console.log( "TIFFDocument", "parseTIFF", "strips", strips );
+			//console.log( 'TIFFDocument', 'parseTIFF', 'strips', strips );
 
 			if (true || false && canvas.getContext) {
-				var ctx = { fillRect: function () {} };//this.canvas.getContext("2d");
+				var ctx = { fillRect: function () {} };//this.canvas.getContext('2d');
 
 				// Set a default fill style.
 				ctx.fillStyle = this.makeRGBAFillValue(255, 255, 255, 0);
@@ -813,7 +821,7 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 								// RGB Color Palette
 								case 3:
 									if (colorMapValues === undefined) {
-										throw Error("Palette image missing color map");
+										throw new Error('Palette image missing color map');
 									}
 
 									var colorMapIndex = pixelSamples[0];
@@ -825,27 +833,27 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 
 								// Transparency mask
 								case 4:
-									throw RangeError( 'Not Yet Implemented: Transparency mask' );
+									throw new RangeError( 'Not Yet Implemented: Transparency mask' );
 								break;
 
 								// CMYK
 								case 5:
-									throw RangeError( 'Not Yet Implemented: CMYK' );
+									throw new RangeError( 'Not Yet Implemented: CMYK' );
 								break;
 
 								// YCbCr
 								case 6:
-									throw RangeError( 'Not Yet Implemented: YCbCr' );
+									throw new RangeError( 'Not Yet Implemented: YCbCr' );
 								break;
 
 								// CIELab
 								case 8:
-									throw RangeError( 'Not Yet Implemented: CIELab' );
+									throw new RangeError( 'Not Yet Implemented: CIELab' );
 								break;
 
 								// Unknown Photometric Interpretation
 								default:
-									throw RangeError( 'Unknown Photometric Interpretation:', photometricInterpretation );
+									throw new RangeError( 'Unknown Photometric Interpretation:', photometricInterpretation );
 								break;
 							}
 
@@ -868,7 +876,7 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 
 			this.operatorLists[fileDirectoryIndex] = operatorList;
 
-			console.log( "TIFFDocument", "parseTIFF", "this.operatorLists", this.operatorLists );
+			console.log( 'TIFFDocument', 'parseTIFF', 'this.operatorLists', this.operatorLists );
 
 			return this;// this.canvas;
 		},

@@ -14,11 +14,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/* globals error, globalScope, InvalidPDFException, log,
-           MissingPDFException, PasswordException, PDFDocument, PDFJS, Promise,
-           Stream, UnknownErrorException, warn, NetworkManager, LocalPdfManager,
-           NetworkPdfManager, XRefParseException, NotImplementedException,
-           isInt */
+/* globals error, globalScope, InvalidPDFException, isInt, LocalPdfManager,
+           log, MissingPDFException, NetworkManager, NetworkPdfManager,
+           NotImplementedException, PasswordException, PDFDocument, PDFJS,
+           Promise, Stream, TiffPdfManager, UnknownErrorException, warn,
+           XRefParseException */
 
 'use strict';
 
@@ -156,8 +156,8 @@ var WorkerMessageHandler = {
 
       // XXX
       pdfManager = new TiffPdfManager(source.data);
-			pdfManagerPromise.resolve();
-			return pdfManagerPromise;
+      pdfManagerPromise.resolve();
+      return pdfManagerPromise;
 
       // XXX: NOT EXECUTED BELOW THIS LINE
       if (source.data) {
@@ -324,7 +324,7 @@ var WorkerMessageHandler = {
 
     handler.on('GetDestinations',
       function wphSetupGetDestinations(data, promise) {
-      	return {};
+        return {};
 
         pdfManager.ensureCatalog('destinations').then(function(destinations) {
           promise.resolve(destinations);
