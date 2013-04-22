@@ -106,6 +106,8 @@ MIMEs = {
     '.ico': 'image/x-icon',
     '.png': 'image/png',
     '.log': 'text/plain',
+    '.tif': 'image/tiff',
+    '.tiff': 'image/tiff',
     '.properties': 'text/plain'
 }
 
@@ -355,9 +357,9 @@ class PDFTestHandler(TestHandlerBase):
           return
 
         location = os.path.abspath(os.path.realpath(DOC_ROOT + os.sep + path))
-        self.wfile.write("<html><body><h1>PDFs of " + path + "</h1>\n")
+        self.wfile.write("<html><body><h1>TIFFs of " + path + "</h1>\n")
         for filename in os.listdir(location):
-          if filename.lower().endswith('.pdf'):
+          if filename.lower().endswith('.tif') or filename.lower().endswith('.tiff'):
             self.wfile.write("<a href='/web/viewer.html?file=" +
               urllib.quote_plus(path + filename, '/') + "' target=pdf>" +
               filename + "</a><br>\n")
