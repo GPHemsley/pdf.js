@@ -52,6 +52,8 @@ var Page = (function PageClosure() {
 		},
 
 		getOperatorList: function Page_getOperatorList(handler) {
+			this.pdfManager.ensureModel('parseTIFF', [handler, this.pageIndex]);
+
 			return this.pdfManager.ensure(this, 'operatorList');
 		},
 
@@ -100,17 +102,15 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 		var xref = new XRef(this.stream, null);
 		this.xref = xref;
 
-		this.pagePromises = [];
-		this.operatorLists = [];
-
 		this.bytes = this.stream.bytes;
 		this.littleEndian = undefined;
 		this.fileDirectories = [];
 
-		//console.log( this, stream, this.isLittleEndian(), this.hasTowel() );
-		//console.log( stream.bytes );
+		this.pagePromises = [];
+		this.operatorLists = [];
+		this.imgData = [];
 
-		console.log( 'TIFFDocument', 'this', this );
+		console.log( "TIFFDocument", "this", this );
 	}
 
 	TIFFDocument.prototype = {
@@ -399,16 +399,12 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 				throw new RangeError('No bytes requested');
 			} else if (numBytes <= 1) {
 				return (bytes[0] & 0xff);
-				//return this.tiffDataView.getUint8(offset, this.littleEndian);
 			} else if (numBytes <= 2) {
 				return (bytes[0] << 8) + (bytes[1] & 0xff);
-				//return this.tiffDataView.getUint16(offset, this.littleEndian);
 			} else if (numBytes <= 3) {
 				return (bytes[0] << 16) + (bytes[1] << 8) + (bytes[2] & 0xff);
-				//return this.tiffDataView.getUint32(offset, this.littleEndian) >>> 8;
 			} else if (numBytes <= 4) {
 				return (bytes[0] << 24) + (bytes[1] << 16) + (bytes[2] << 8) + (bytes[3] & 0xff);
-				//return this.tiffDataView.getUint32(offset, this.littleEndian);
 			} else {
 				console.log( numBytes, offset );
 				throw new RangeError('Too many bytes requested');
@@ -472,6 +468,15 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 			return 'rgba(' + r + ', ' + g + ', ' + b + ', ' + a + ')';
 		},
 
+		setPixel: function TIFFDocument_setPixel(fileDirectoryIndex, x, y, red, green, blue, opacity) {
+			var sample = ((y * this.imgData[fileDirectoryIndex].width) + x) * 4;
+
+			this.imgData[fileDirectoryIndex].data[sample] = red;
+			this.imgData[fileDirectoryIndex].data[sample + 1] = green;
+			this.imgData[fileDirectoryIndex].data[sample + 2] = blue;
+			this.imgData[fileDirectoryIndex].data[sample + 3] = opacity;
+		},
+
 		parseFileDirectory: function TIFFDocument_parseFileDirectory(byteOffset) {
 			var numDirEntries = this.getBytes(2, byteOffset);
 
@@ -502,35 +507,29 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 			}
 		},
 
-		parseTIFF: function TIFFDocument_parseTIFF() {
-			//canvas = canvas || document.createElement('canvas');
-
-			//this.tiffDataView = new DataView(tiffArrayBuffer);
-			//this.canvas = canvas;
-
-			this.littleEndian = this.isLittleEndian();
-
-			if (!this.hasTowel()) {
-				return;
-			}
-
+		parseFileDirectories: function TIFFDocument_parseFileDirectories() {
 			var firstIFDByteOffset = this.getBytes(4, 4);
 
 			this.fileDirectories = this.parseFileDirectory(firstIFDByteOffset);
 
-			var fileDirectoryIndex = 0;
+			return this.fileDirectories;
+		},
 
+		parseTIFF: function TIFFDocument_parseTIFF(handler, fileDirectoryIndex) {
 			var fileDirectory = this.fileDirectories[fileDirectoryIndex];
 
 			var operatorList = createOperatorList();
 
-			console.log( 'fileDirectory', fileDirectory );
+			console.log( "TIFFDocument", "parseTIFF", "fileDirectory", fileDirectory );
 
 			var imageWidth = fileDirectory.ImageWidth.values[0];
 			var imageLength = fileDirectory.ImageLength.values[0];
 
-			//this.canvas.width = imageWidth;
-			//this.canvas.height = imageLength;
+			this.imgData[fileDirectoryIndex] = {
+				width: imageWidth,
+				height: imageLength,
+				data: new Uint8Array(imageWidth * imageLength * 4),
+			};
 
 			var strips = [];
 
@@ -663,7 +662,7 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 								var iterations = 1;
 
 								// The header byte is signed.
-								var header = (this.getBytes(1, stripOffset + byteOffset) << 24) >> 24;//this.tiffDataView.getInt8(stripOffset + byteOffset, this.littleEndian);
+								var header = (this.getBytes(1, stripOffset + byteOffset) << 24) >> 24;
 
 								if ((header >= 0) && (header <= 127)) { // Normal pixels.
 									blockLength = header + 1;
@@ -723,14 +722,12 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 	//			console.log( strips[i] );
 			}
 
-			//console.log( 'TIFFDocument', 'parseTIFF', 'strips', strips );
+			//console.log( "TIFFDocument", "parseTIFF", "strips", strips );
 
-			if (true || false && canvas.getContext) {
-				var ctx = { fillRect: function () {} };//this.canvas.getContext('2d');
-
-				// Set a default fill style.
-				ctx.fillStyle = this.makeRGBAFillValue(255, 255, 255, 0);
-				operatorList = addOperatorToList(operatorList, 'setFillRGBColor', [255, 255, 255]);
+			// XXX: This conditional can probably be eliminated.
+			if (true) {
+				operatorList = addOperatorToList(operatorList, 'save', []);
+				operatorList = addOperatorToList(operatorList, 'transform', [imageWidth, 0, 0, imageLength, 0, 0]);
 
 				// If RowsPerStrip is missing, the whole image is in one strip.
 				if (fileDirectory.RowsPerStrip) {
@@ -781,13 +778,12 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 							var red = 0;
 							var green = 0;
 							var blue = 0;
-							var opacity = 1.0;
+							var opacity = 255;
 
 							if (numExtraSamples > 0) {
 								for (var k = 0; k < numExtraSamples; k++) {
 									if (extraSamplesValues[k] === 1 || extraSamplesValues[k] === 2) {
-										// Clamp opacity to the range [0,1].
-										opacity = pixelSamples[3 + k] / 256;
+										opacity = pixelSamples[3 + k];
 
 										break;
 									}
@@ -857,28 +853,31 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 								break;
 							}
 
-							ctx.fillStyle = this.makeRGBAFillValue(red, green, blue, opacity);
-							operatorList = addOperatorToList(operatorList, 'setFillRGBColor', [red, green, blue]);
-							ctx.fillRect(x, yPadding + y, 1, 1);
-							// XXX: For some reason, this would normally print bottom to top.
-							operatorList = addOperatorToList(operatorList, 'rectangle', [x, (imageLength - 1) - (yPadding + y), 1, 1]);
-							operatorList = addOperatorToList(operatorList, 'fill', []);
+							this.setPixel(fileDirectoryIndex, x, yPadding + y, red, green, blue, opacity);
 						}
 					}
 
 					numRowsInPreviousStrip = numRowsInStrip;
 				}
-			}
 
-	/*		for (var i = 0, numFileDirectories = this.fileDirectories.length; i < numFileDirectories; i++) {
-				// Stuff
-			}*/
+				var objId = 'tiff_' + fileDirectoryIndex;
+
+				operatorList.dependencies[objId] = true;
+				operatorList = addOperatorToList(operatorList, 'dependency', [objId]);
+
+				handler.send('obj', [objId, fileDirectoryIndex, 'Image', this.imgData[fileDirectoryIndex]]);
+
+				operatorList = addOperatorToList(operatorList, 'paintImageXObject', [objId, imageWidth, imageLength]);
+				operatorList = addOperatorToList(operatorList, 'restore', []);
+			}
 
 			this.operatorLists[fileDirectoryIndex] = operatorList;
 
-			console.log( 'TIFFDocument', 'parseTIFF', 'this.operatorLists', this.operatorLists );
+			console.log( "TIFFDocument", "parseTIFF", "this.operatorLists", this.operatorLists );
+			console.log( "TIFFDocument", "parseTIFF", "this.imgData", this.imgData );
+			console.log( "TIFFDocument", "parseTIFF", "this.imgData[fileDirectoryIndex].data.length", this.imgData[fileDirectoryIndex].data.length );
 
-			return this;// this.canvas;
+			return this;
 		},
 
 		getPage: function TIFFDocument_getPage(pageIndex) {

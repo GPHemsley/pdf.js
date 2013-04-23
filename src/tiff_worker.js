@@ -140,8 +140,8 @@ var WorkerMessageHandler = {
 
     pdfManager.ensureModel('isLittleEndian', []).then(function() {
       pdfManager.ensureModel('hasTowel', []).then(function() {
-        pdfManager.ensureModel('parseTIFF', []).then(
-            parseSuccess, parseFailure);
+        pdfManager.ensureModel('parseFileDirectories', []).then(
+          parseSuccess, parseFailure);
       });
     });
 
