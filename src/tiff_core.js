@@ -4,11 +4,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 /* globals assertWellFormed, calculateMD5, error, globalScope,
            InvalidPDFException, isArray, isArrayBuffer, isDict, isInt, isName,
-           isStream, isString, LocalPdfManager, log, MissingPDFException,
-           NetworkManager, NetworkPdfManager, NotImplementedException,
-           PasswordException, PDFDocument, PDFJS, Promise, shadow, Stream,
-           stringToPDFString, TiffPdfManager, UnknownErrorException, warn,
-           XRef, XRefParseException */
+           isStream, isString, LocalPdfManager, LocalTiffManager, log,
+           MissingPDFException, NetworkManager, NetworkPdfManager,
+           NetworkTiffManager, NotImplementedException, PasswordException,
+           PDFDocument, PDFJS, Promise, shadow, Stream, stringToPDFString,
+           UnknownErrorException, warn, XRef, XRefParseException */
 
 'use strict';
 
@@ -110,7 +110,7 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 		this.operatorLists = [];
 		this.imgData = [];
 
-		console.log( "TIFFDocument", "this", this );
+		//console.log( "TIFFDocument", "this", this );
 	}
 
 	TIFFDocument.prototype = {
@@ -156,7 +156,7 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 			} else if (BOM === 0x4D4D) {
 				this.littleEndian = false;
 			} else {
-				console.log( BOM );
+				console.log( "BOM", BOM );
 				throw new TypeError('Invalid byte order value.');
 			}
 

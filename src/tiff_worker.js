@@ -15,10 +15,10 @@
  * limitations under the License.
  */
 /* globals error, globalScope, InvalidPDFException, isInt, LocalPdfManager,
-           log, MissingPDFException, NetworkManager, NetworkPdfManager,
-           NotImplementedException, PasswordException, PDFDocument, PDFJS,
-           Promise, Stream, TiffPdfManager, UnknownErrorException, warn,
-           XRefParseException */
+           LocalTiffManager, log, MissingPDFException, NetworkManager,
+           NetworkPdfManager, NetworkTiffManager, NotImplementedException,
+           PasswordException, PDFDocument, PDFJS, Promise, Stream,
+           UnknownErrorException, warn, XRefParseException */
 
 'use strict';
 
@@ -138,12 +138,12 @@ var WorkerMessageHandler = {
         loadDocumentPromise.reject(e);
       };
 
-    pdfManager.ensureModel('isLittleEndian', []).then(function() {
-      pdfManager.ensureModel('hasTowel', []).then(function() {
-        pdfManager.ensureModel('parseFileDirectories', []).then(
-          parseSuccess, parseFailure);
+      pdfManager.ensureModel('isLittleEndian', []).then(function() {
+        pdfManager.ensureModel('hasTowel', []).then(function() {
+          pdfManager.ensureModel('parseFileDirectories', []).then(
+            parseSuccess, parseFailure);
+        });
       });
-    });
 
       return loadDocumentPromise;
     }
@@ -154,18 +154,12 @@ var WorkerMessageHandler = {
       var source = data.source;
       var disableRange = data.disableRange;
 
-      // XXX
-      pdfManager = new TiffPdfManager(source.data);
-      pdfManagerPromise.resolve();
-      return pdfManagerPromise;
-
-      // XXX: NOT EXECUTED BELOW THIS LINE
       if (source.data) {
-        pdfManager = new LocalPdfManager(source.data, source.password);
+        pdfManager = new LocalTiffManager(source.data);
         pdfManagerPromise.resolve();
         return pdfManagerPromise;
       } else if (source.chunkedViewerLoading) {
-        pdfManager = new NetworkPdfManager(source, handler);
+        pdfManager = new NetworkTiffManager(source, handler);
         pdfManagerPromise.resolve();
         return pdfManagerPromise;
       }
@@ -197,24 +191,24 @@ var WorkerMessageHandler = {
           networkManager.abortRequest(fullRequestXhrId);
 
           source.length = length;
-          pdfManager = new NetworkPdfManager(source, handler);
+          pdfManager = new NetworkTiffManager(source, handler);
           pdfManagerPromise.resolve(pdfManager);
         },
 
         onDone: function onDone(args) {
           // the data is array, instantiating directly from it
-          pdfManager = new LocalPdfManager(args.chunk, source.password);
+          pdfManager = new LocalTiffManager(args.chunk);
           pdfManagerPromise.resolve();
         },
 
         onError: function onError(status) {
           if (status == 404) {
-            var exception = new MissingPDFException( 'Missing PDF "' +
+            var exception = new MissingPDFException( 'Missing TIFF "' +
                 source.url + '".');
             handler.send('MissingPDF', { exception: exception });
           } else {
             handler.send('DocError', 'Unexpected server response (' +
-                status + ') while retrieving PDF "' +
+                status + ') while retrieving TIFF "' +
                 source.url + '".');
           }
         },
@@ -324,11 +318,7 @@ var WorkerMessageHandler = {
 
     handler.on('GetDestinations',
       function wphSetupGetDestinations(data, promise) {
-        return {};
-
-        pdfManager.ensureCatalog('destinations').then(function(destinations) {
-          promise.resolve(destinations);
-        });
+        return promise.resolve();
       }
     );
 
