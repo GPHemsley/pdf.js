@@ -727,9 +727,6 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 
 			// XXX: This conditional can probably be eliminated.
 			if (true) {
-				operatorList = addOperatorToList(operatorList, 'save', []);
-				operatorList = addOperatorToList(operatorList, 'transform', [imageWidth, 0, 0, imageLength, 0, 0]);
-
 				// If RowsPerStrip is missing, the whole image is in one strip.
 				if (fileDirectory.RowsPerStrip) {
 					var rowsPerStrip = fileDirectory.RowsPerStrip.values[0];
@@ -858,18 +855,21 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 						}
 					}
 
+					operatorList = addOperatorToList(operatorList, 'save', []);
+					operatorList = addOperatorToList(operatorList, 'transform', [imageWidth, 0, 0, imageLength, 0, 0]);
+
+					var objId = 'tiff_fd' + fileDirectoryIndex + '_s' + i;
+
+					operatorList.dependencies[objId] = true;
+					operatorList = addOperatorToList(operatorList, 'dependency', [objId]);
+
+					handler.send('obj', [objId, fileDirectoryIndex, 'Image', this.imgData[fileDirectoryIndex]]);
+
+					operatorList = addOperatorToList(operatorList, 'paintImageXObject', [objId, imageWidth, numRowsInStrip]);
+					operatorList = addOperatorToList(operatorList, 'restore', []);
+
 					numRowsInPreviousStrip = numRowsInStrip;
 				}
-
-				var objId = 'tiff_' + fileDirectoryIndex;
-
-				operatorList.dependencies[objId] = true;
-				operatorList = addOperatorToList(operatorList, 'dependency', [objId]);
-
-				handler.send('obj', [objId, fileDirectoryIndex, 'Image', this.imgData[fileDirectoryIndex]]);
-
-				operatorList = addOperatorToList(operatorList, 'paintImageXObject', [objId, imageWidth, imageLength]);
-				operatorList = addOperatorToList(operatorList, 'restore', []);
 			}
 
 			this.operatorLists[fileDirectoryIndex] = operatorList;
