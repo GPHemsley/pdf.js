@@ -26,7 +26,7 @@ var LocalTiffManager = (function LocalTiffManagerClosure() {
 
     // XXX: This should actually be in Stream().
     stream.getByteRange = function Stream_getByteRange(start, end) {
-      return stream.bytes.subarray(start, end);
+      return this.bytes.subarray(start, end);
     };
 
     this.pdfModel = new TIFFDocument(this, stream);
