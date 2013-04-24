@@ -692,17 +692,35 @@ PdfStreamConverter.prototype = {
   // nsIRequestObserver::onStartRequest
   onStartRequest: function(aRequest, aContext) {
     // Setup the request so we can use it below.
-    var acceptRanges = false;
+    var isHttpRequest = false;
     try {
       aRequest.QueryInterface(Ci.nsIHttpChannel);
-      if (aRequest.getResponseHeader('Accept-Ranges') === 'bytes') {
-        var hash = aRequest.URI.ref;
-        acceptRanges = hash.indexOf('disableRange=true') < 0;
-      }
+      isHttpRequest = true;
     } catch (e) {}
+
+    var rangeRequest = false;
+    if (isHttpRequest) {
+      var contentEncoding = 'identity';
+      try {
+        contentEncoding = aRequest.getResponseHeader('Content-Encoding');
+      } catch (e) {}
+
+      var acceptRanges;
+      try {
+        acceptRanges = aRequest.getResponseHeader('Accept-Ranges');
+      } catch (e) {}
+
+      var hash = aRequest.URI.ref;
+      rangeRequest = contentEncoding === 'identity' &&
+                     acceptRanges === 'bytes' &&
+                     aRequest.contentLength >= 0 &&
+                     hash.indexOf('disableRange=true') < 0;
+    }
+
     aRequest.QueryInterface(Ci.nsIChannel);
 
     aRequest.QueryInterface(Ci.nsIWritablePropertyBag);
+
     var contentDispositionFilename;
     try {
       contentDispositionFilename = aRequest.contentDispositionFilename;
@@ -712,7 +730,7 @@ PdfStreamConverter.prototype = {
     aRequest.setProperty('contentType', aRequest.contentType);
     aRequest.contentType = 'text/html';
 
-    if (!acceptRanges) {
+    if (!rangeRequest) {
       // Creating storage for PDF data
       var contentLength = aRequest.contentLength;
       this.dataListener = new PdfDataListener(contentLength);
@@ -730,8 +748,8 @@ PdfStreamConverter.prototype = {
     var channel = ioService.newChannel(
                     PDF_VIEWER_WEB_PAGE, null, null);
 
-    var self = this;
     var listener = this.listener;
+    var dataListener = this.dataListener;
     // Proxy all the request observer calls, when it gets to onStopRequest
     // we can get the dom window.  We also intentionally pass on the original
     // request(aRequest) below so we don't overwrite the original channel and
@@ -750,7 +768,7 @@ PdfStreamConverter.prototype = {
         // Double check the url is still the correct one.
         if (domWindow.document.documentURIObject.equals(aRequest.URI)) {
           var actions;
-          if (acceptRanges) {
+          if (rangeRequest) {
             // We are going to be issuing range requests, so cancel the
             // original request
             aRequest.resume();
@@ -759,7 +777,7 @@ PdfStreamConverter.prototype = {
                 contentDispositionFilename, aRequest);
           } else {
             actions = new StandardChromeActions(
-                domWindow, contentDispositionFilename, self.dataListener);
+                domWindow, contentDispositionFilename, dataListener);
           }
           var requestListener = new RequestListener(actions);
           domWindow.addEventListener(PDFJS_EVENT_ID, function(event) {
