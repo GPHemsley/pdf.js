@@ -102,7 +102,6 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 		var xref = new XRef(this.stream, null);
 		this.xref = xref;
 
-		this.bytes = this.stream.bytes;
 		this.littleEndian = undefined;
 		this.fileDirectories = [];
 
@@ -377,17 +376,19 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 				numBytes = 0;
 			}
 
+			/*
 			var bytesLength = this.bytes.length;
 
 			if ((offset + numBytes) > bytesLength) {
 				console.log(offset, numBytes, bytesLength);
 				throw new RangeError('More bytes requested than available');
 			}
+			*/
 
-			var subarray = this.bytes.subarray(offset, offset + numBytes);
+			var byteRange = this.stream.getByteRange(offset, offset + numBytes);
 
-			for (var bytes = [], i = 0; i < subarray.length; i++) {
-				bytes[i] = subarray[i];
+			for (var bytes = [], i = 0, byteRangeLength = byteRange.length; i < byteRangeLength; i++) {
+				bytes[i] = byteRange[i];
 			}
 
 			if (this.littleEndian) {

@@ -23,6 +23,12 @@
 var LocalTiffManager = (function LocalTiffManagerClosure() {
   function LocalTiffManager(data) {
     var stream = new Stream(data);
+
+    // XXX: This should actually be in Stream().
+    stream.getByteRange = function Stream_getByteRange(start, end) {
+      return stream.bytes.subarray(start, end);
+    };
+
     this.pdfModel = new TIFFDocument(this, stream);
     this.loadedStream = new Promise();
     this.loadedStream.resolve(stream);
