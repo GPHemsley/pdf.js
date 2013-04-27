@@ -340,31 +340,40 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 
 		getBits: function TIFFDocument_getBits(numBits, byteOffset, bitOffset) {
 			bitOffset = bitOffset || 0;
-			var extraBytes = Math.floor(bitOffset / 8);
-			var newByteOffset = byteOffset + extraBytes;
-			var totalBits = bitOffset + numBits;
-			var shiftRight = 32 - numBits;
 
-			if (totalBits <= 0) {
+			// We only want to keep track of a fraction of a single byte.
+			var extraBytes = Math.floor(bitOffset / 8);
+			byteOffset = byteOffset + extraBytes;
+			bitOffset = bitOffset - (extraBytes * 8);
+
+			if (numBits <= 0) {
 				console.log( numBits, byteOffset, bitOffset );
 				throw new RangeError('No bits requested');
-			} else if (totalBits <= 8) {
-				var shiftLeft = 24 + bitOffset;
-				var rawBits = this.tiffDataView.getUint8(newByteOffset, this.littleEndian);
-			} else if (totalBits <= 16) {
-				var shiftLeft = 16 + bitOffset;
-				var rawBits = this.tiffDataView.getUint16(newByteOffset, this.littleEndian);
-			} else if (totalBits <= 32) {
-				var shiftLeft = bitOffset;
-				var rawBits = this.tiffDataView.getUint32(newByteOffset, this.littleEndian);
-			} else {
+			} else if (numBits > 32) {
 				console.log( numBits, byteOffset, bitOffset );
 				throw new RangeError('Too many bits requested');
 			}
 
+			if (((numBits % 8) === 0) && (bitOffset === 0)) {
+				return this.getBytes((numBits / 8), byteOffset);
+			}
+
+			var totalBits = numBits + bitOffset;
+			var numBytes = Math.ceil(totalBits / 8);
+
+			var byteRange = this.stream.getByteRange(byteOffset, byteOffset + numBytes);
+
+			var rawBits = 0;
+			for (var i = 0, byteRangeLength = byteRange.length; i < byteRangeLength; i++) {
+				rawBits = (rawBits << 8) | byteRange[i];
+			}
+
+			var shiftRight = 32 - numBits;
+			var shiftLeft = (32 - (8 * Math.ceil(totalBits / 8))) + bitOffset;
+
 			var chunkInfo = {
 				'bits': ((rawBits << shiftLeft) >>> shiftRight),
-				'byteOffset': newByteOffset + Math.floor(totalBits / 8),
+				'byteOffset': byteOffset + Math.floor(totalBits / 8),
 				'bitOffset': totalBits % 8,
 			};
 
@@ -457,16 +466,9 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 		},
 
 		clampColorSample: function(colorSample, bitsPerSample) {
-			var multiplier = Math.pow(2, 8 - bitsPerSample);
+			var multiplier = 255 / (Math.pow(2, bitsPerSample) - 1);
 
-			return Math.floor((colorSample * multiplier) + (multiplier - 1));
-		},
-
-		makeRGBAFillValue: function(r, g, b, a) {
-			if(typeof a === 'undefined') {
-				a = 1.0;
-			}
-			return 'rgba(' + r + ', ' + g + ', ' + b + ', ' + a + ')';
+			return Math.round(colorSample * multiplier);
 		},
 
 		setPixel: function TIFFDocument_setPixel(fileDirectoryIndex, x, y, red, green, blue, opacity) {
@@ -588,7 +590,7 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 				var stripByteCount = stripByteCountValues[i];
 
 				// Loop through pixels.
-				for (var byteOffset = 0, bitOffset = 0, jIncrement = 1, getHeader = true, pixel = [], numBytes = 0, sample = 0, currentSample = 0; byteOffset < stripByteCount; byteOffset += jIncrement) {
+				for (var byteOffset = 0, bitOffset = 0, jIncrement = 1, getHeader = true, pixel = [], numPixelsInCurrentRow = 0, numBytes = 0, sample = 0, currentSample = 0; byteOffset < stripByteCount; byteOffset += jIncrement) {
 					// Decompress strip.
 					switch (compression) {
 						// Uncompressed
@@ -607,19 +609,23 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 
 									byteOffset = sampleInfo.byteOffset - stripOffset;
 									bitOffset = sampleInfo.bitOffset;
-
-									throw new RangeError('Cannot handle sub-byte bits per sample');
 								}
 							}
 
 							strips[i].push(pixel);
+							numPixelsInCurrentRow++;
 
 							if (hasBytesPerPixel) {
 								jIncrement = bytesPerPixel;
 							} else {
 								jIncrement = 0;
 
-								throw new RangeError('Cannot handle sub-byte bits per pixel');
+								// The end of a row is zero-padded so each new row starts on a byte boundary.
+								if ((numPixelsInCurrentRow === imageWidth) && (bitOffset !== 0)) {
+									byteOffset++;
+									bitOffset = 0;
+									numPixelsInCurrentRow = 0;
+								}
 							}
 						break;
 
@@ -723,7 +729,7 @@ var TIFFDocument = (function TIFFDocumentClosure() {
 	//			console.log( strips[i] );
 			}
 
-			//console.log( "TIFFDocument", "parseTIFF", "strips", strips );
+// 			console.log( "TIFFDocument", "parseTIFF", "strips", strips );
 
 			// XXX: This conditional can probably be eliminated.
 			if (true) {
